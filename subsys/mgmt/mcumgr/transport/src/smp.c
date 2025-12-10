@@ -13,6 +13,7 @@
 #include <zephyr/mgmt/mcumgr/smp/smp.h>
 #include <zephyr/mgmt/mcumgr/transport/smp.h>
 
+#include <mgmt/mcumgr/transport/smp_internal.h>
 #include <mgmt/mcumgr/transport/smp_reassembly.h>
 
 #include <zephyr/logging/log.h>
@@ -27,17 +28,20 @@ LOG_MODULE_REGISTER(mcumgr_smp, CONFIG_MCUMGR_TRANSPORT_LOG_LEVEL);
 #define WEAK
 #endif
 
+#ifdef CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL
 K_THREAD_STACK_DEFINE(smp_work_queue_stack, CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_STACK_SIZE);
 
 static struct k_work_q smp_work_queue;
+#endif /* CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL */
+
+static const struct k_work_queue_config smp_work_queue_config = {
+	.name = "mcumgr smp"
+};
 
 #ifdef CONFIG_SMP_CLIENT
 static sys_slist_t smp_transport_clients = SYS_SLIST_STATIC_INIT(&smp_transport_clients);
 #endif
 
-static const struct k_work_queue_config smp_work_queue_config = {
-	.name = "mcumgr smp"
-};
 
 NET_BUF_POOL_DEFINE(pkt_pool, CONFIG_MCUMGR_TRANSPORT_NETBUF_COUNT,
 		    CONFIG_MCUMGR_TRANSPORT_NETBUF_SIZE,
@@ -157,6 +161,15 @@ int smp_transport_init(struct smp_transport *smpt)
 	k_work_init(&smpt->work, smp_handle_reqs);
 	k_fifo_init(&smpt->fifo);
 
+#ifdef CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_DEDICATED
+	/* Initialize dedicated work queue */
+	k_work_queue_init(&smpt->work_queue);
+
+	k_work_queue_start(&smpt->work_queue, smpt->work_queue_stack,
+			   K_THREAD_STACK_SIZEOF(smpt->work_queue_stack),
+			   CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_THREAD_PRIO, &smp_work_queue_config);
+#endif /* CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_DEDICATED */
+
 	return 0;
 }
 
@@ -200,15 +213,22 @@ WEAK void
 smp_rx_req(struct smp_transport *smpt, struct net_buf *nb)
 {
 	k_fifo_put(&smpt->fifo, nb);
-	k_work_submit_to_queue(&smp_work_queue, &smpt->work);
+	k_work_submit_to_queue(smp_get_wq(smpt), &smpt->work);
 }
 
-#ifdef CONFIG_SMP_CLIENT
-struct k_work_q *smp_get_wq(void)
+struct k_work_q *smp_get_wq(struct smp_transport *smpt)
 {
-	return &smp_work_queue;
-}
+	struct k_work_q *work_q = NULL;
+#ifdef CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL
+	work_q = &smp_work_queue;
+#elif defined(CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_DEDICATED)
+	work_q = &smpt->work_queue;
+#else
+#error "No workqueue model defined"
 #endif
+
+	return work_q;
+}
 
 void smp_rx_remove_invalid(struct smp_transport *zst, void *arg)
 {
@@ -245,7 +265,7 @@ void smp_rx_remove_invalid(struct smp_transport *zst, void *arg)
 
 	/* If at least one entry remains, queue the workqueue for running */
 	if (!k_fifo_is_empty(&zst->fifo)) {
-		k_work_submit_to_queue(&smp_work_queue, &zst->work);
+		k_work_submit_to_queue(smp_get_wq(zst), &zst->work);
 	}
 }
 
@@ -266,11 +286,13 @@ void smp_rx_clear(struct smp_transport *zst)
 
 static int smp_init(void)
 {
+#ifdef CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL
 	k_work_queue_init(&smp_work_queue);
 
 	k_work_queue_start(&smp_work_queue, smp_work_queue_stack,
 			   K_THREAD_STACK_SIZEOF(smp_work_queue_stack),
 			   CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_THREAD_PRIO, &smp_work_queue_config);
+#endif /* CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL */
 
 	return 0;
 }

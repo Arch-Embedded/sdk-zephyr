@@ -132,6 +132,12 @@ struct smp_transport {
 		uint16_t expected;		/* expected bytes to come */
 	} __reassembly;
 #endif
+#ifdef CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_MODEL_DEDICATED
+	/* Work queue for processing incoming requests */
+	struct k_work_q work_queue;
+	/* Work queue stack */
+	K_KERNEL_STACK_MEMBER(work_queue_stack, CONFIG_MCUMGR_TRANSPORT_WORKQUEUE_STACK_SIZE);
+#endif
 };
 
 /**
