@@ -41,12 +41,12 @@ static struct smp_client_transport_entry smp_client_transport;
 static void smp_uart_process_frag(struct uart_mcumgr_rx_buf *rx_buf)
 {
 	struct net_buf *nb;
+	int ret;
 
 	/* Decode the fragment and write the result to the global receive
 	 * context.
 	 */
-	nb = mcumgr_serial_process_frag(&smp_uart_rx_ctxt,
-					rx_buf->data, rx_buf->length);
+	ret = mcumgr_serial_process_frag(&smp_uart_rx_ctxt, rx_buf->data, rx_buf->length, &nb);
 
 	/* Release the encoded fragment. */
 	uart_mcumgr_free_rx_buf(rx_buf);
@@ -54,7 +54,7 @@ static void smp_uart_process_frag(struct uart_mcumgr_rx_buf *rx_buf)
 	/* If a complete packet has been received, pass it to SMP for
 	 * processing.
 	 */
-	if (nb != NULL) {
+	if (ret == 0 && nb != NULL) {
 		smp_rx_req(&smp_uart_transport, nb);
 	}
 }

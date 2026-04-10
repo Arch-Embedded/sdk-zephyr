@@ -136,10 +136,9 @@ static int read_mcumgr_byte(struct smp_shell_data *data, uint8_t byte)
 	return SMP_SHELL_MCUMGR_STATE_NONE;
 }
 
-size_t smp_shell_rx_bytes(struct smp_shell_data *data, const uint8_t *bytes,
-			  size_t size)
+size_t smp_shell_rx_bytes(struct smp_shell_data *data, const uint8_t *bytes, size_t size)
 {
-	size_t consumed = 0;		/* Number of bytes consumed by SMP */
+	size_t consumed = 0; /* Number of bytes consumed by SMP */
 
 	/* Process all bytes that are accepted as SMP commands. */
 	while (size != consumed) {
@@ -148,8 +147,7 @@ size_t smp_shell_rx_bytes(struct smp_shell_data *data, const uint8_t *bytes,
 
 		if (mcumgr_state == SMP_SHELL_MCUMGR_STATE_NONE) {
 			break;
-		} else if (mcumgr_state == SMP_SHELL_MCUMGR_STATE_HEADER &&
-			   !data->buf) {
+		} else if (mcumgr_state == SMP_SHELL_MCUMGR_STATE_HEADER && !data->buf) {
 			data->buf = net_buf_alloc(data->buf_pool, K_NO_WAIT);
 			if (!data->buf) {
 				LOG_WRN("Failed to alloc SMP buf");
@@ -161,8 +159,7 @@ size_t smp_shell_rx_bytes(struct smp_shell_data *data, const uint8_t *bytes,
 		}
 
 		/* Newline in payload means complete frame */
-		if (mcumgr_state == SMP_SHELL_MCUMGR_STATE_PAYLOAD &&
-		    byte == '\n') {
+		if (mcumgr_state == SMP_SHELL_MCUMGR_STATE_PAYLOAD && byte == '\n') {
 			if (data->buf) {
 				k_fifo_put(&data->buf_ready, data->buf);
 				data->buf = NULL;
@@ -187,6 +184,7 @@ void smp_shell_process(struct smp_shell_data *data)
 {
 	struct net_buf *buf;
 	struct net_buf *nb;
+	int ret;
 
 	while (true) {
 		buf = k_fifo_get(&data->buf_ready, K_NO_WAIT);
@@ -194,10 +192,8 @@ void smp_shell_process(struct smp_shell_data *data)
 			break;
 		}
 
-		nb = mcumgr_serial_process_frag(&smp_shell_rx_ctxt,
-						buf->data,
-						buf->len);
-		if (nb != NULL) {
+		ret = mcumgr_serial_process_frag(&smp_shell_rx_ctxt, buf->data, buf->len, &nb);
+		if (ret == 0 && nb != NULL) {
 			smp_rx_req(&smp_shell_transport, nb);
 		}
 

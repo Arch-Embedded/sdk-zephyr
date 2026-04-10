@@ -49,24 +49,24 @@ typedef int (*mcumgr_serial_tx_cb)(const void *data, int len);
  * @brief Processes an mcumgr request fragment received over a serial
  *        transport.
  *
- * Processes an mcumgr request fragment received over a serial transport.  If
+ * Processes an mcumgr request fragment received over a serial transport. If
  * the fragment is the end of a valid mcumgr request, this function returns a
- * net_buf containing the decoded request.  It is the caller's responsibility
+ * net_buf containing the decoded request. It is the caller's responsibility
  * to free the net_buf after it has been processed.
  *
  * @param rx_ctxt               The receive context associated with the serial
  *                                  transport being used.
  * @param frag                  The incoming fragment to process.
  * @param frag_len              The length of the fragment, in bytes.
+ * @param out_nb                If a complete and valid request has been received, a
+ *                              pointer to a net_buf containing the decoded request.
  *
- * @return                      A net_buf containing the decoded request if a
- *                                  complete and valid request has been
- *                                  received.
- *                              NULL if the packet is incomplete or invalid.
+ * @return                      0 if a complete packet was received;
+ *                              negative error code if the frame is invalid or if additional
+ *                              fragments are expected.
  */
-struct net_buf *mcumgr_serial_process_frag(
-	struct mcumgr_serial_rx_ctxt *rx_ctxt,
-	const uint8_t *frag, int frag_len);
+int mcumgr_serial_process_frag(struct mcumgr_serial_rx_ctxt *rx_ctxt, const uint8_t *frag,
+			       int frag_len, struct net_buf **out_nb);
 
 /**
  * @brief Encodes and transmits an mcumgr packet over serial.

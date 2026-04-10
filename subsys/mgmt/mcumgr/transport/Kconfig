@@ -11,6 +11,29 @@
 #  MCUMGR_TRANSPORT_ -- general transport options;
 #  MCUMGR_TRANSPORT_WORKQUEUE -- for workqueue configuration;
 #  MCUMGR_TRANSPORT_NETBUF -- for Net Buf related configuration.
+choice MCUMGR_TRANSPORT_WORKQUEUE_MODEL
+	prompt "MCUmgr transport thread model"
+	default MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL
+	help
+	  Select the work queue model to be used by the MCUmgr transport
+	  subsystem.
+
+config MCUMGR_TRANSPORT_WORKQUEUE_MODEL_DEDICATED
+	bool "MCUmgr transport dedicated workqueue model"
+	help
+		The transport subsystem creates its own workqueue to handle
+		incoming requests. This model is suitable for transports
+		that require asynchronous processing of requests over
+		multiple transport instances.
+
+config MCUMGR_TRANSPORT_WORKQUEUE_MODEL_GLOBAL
+	bool "MCUmgr transport global workqueue model"
+	help
+		The transport subsystem creates a global workqueue to handle
+		incoming requests. This model is suitable for cases where a single
+		workqueue services all transport instances.
+
+endchoice
 
 config MCUMGR_TRANSPORT_WORKQUEUE_STACK_SIZE
 	int "MCUmgr transport workqueue stack size"

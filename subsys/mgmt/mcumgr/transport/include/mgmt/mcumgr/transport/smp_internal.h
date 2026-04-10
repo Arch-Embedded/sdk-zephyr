@@ -48,14 +48,12 @@ struct zephyr_smp_transport;
  */
 void smp_rx_req(struct smp_transport *smtp, struct net_buf *nb);
 
-#ifdef CONFIG_SMP_CLIENT
 /**
  * @brief Get work queue for SMP client.
  *
  * @return SMP work queue object.
  */
-struct k_work_q *smp_get_wq(void);
-#endif
+struct k_work_q *smp_get_wq(struct smp_transport *smpt);
 
 /**
  * @brief Allocates a response buffer.
