@@ -49,7 +49,11 @@ NET_BUF_POOL_DEFINE(pkt_pool, CONFIG_MCUMGR_TRANSPORT_NETBUF_COUNT,
 
 struct net_buf *smp_packet_alloc(void)
 {
-	return net_buf_alloc(&pkt_pool, K_NO_WAIT);
+	struct net_buf *nb = net_buf_alloc(&pkt_pool, K_NO_WAIT);
+	if (nb == NULL) {
+		LOG_ERR("Failed to allocate SMP packet");
+	}
+	return nb;
 }
 
 void smp_packet_free(struct net_buf *nb)
