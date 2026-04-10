@@ -40,15 +40,14 @@ static int mcumgr_serial_extract_len(struct mcumgr_serial_rx_ctxt *rx_ctxt)
 	return 0;
 }
 
-static int mcumgr_serial_decode_frag(struct mcumgr_serial_rx_ctxt *rx_ctxt,
-				     const uint8_t *frag, int frag_len)
+static int mcumgr_serial_decode_frag(struct mcumgr_serial_rx_ctxt *rx_ctxt, const uint8_t *frag,
+				     int frag_len)
 {
 	size_t dec_len;
 	int rc;
 
-	rc = base64_decode(rx_ctxt->nb->data + rx_ctxt->nb->len,
-				   net_buf_tailroom(rx_ctxt->nb), &dec_len,
-				   frag, frag_len);
+	rc = base64_decode(rx_ctxt->nb->data + rx_ctxt->nb->len, net_buf_tailroom(rx_ctxt->nb),
+			   &dec_len, frag, frag_len);
 	if (rc != 0) {
 		return -EINVAL;
 	}
@@ -58,31 +57,30 @@ static int mcumgr_serial_decode_frag(struct mcumgr_serial_rx_ctxt *rx_ctxt,
 	return 0;
 }
 
-/**
- * Processes a received mcumgr frame.
- *
- * @return                      true if a complete packet was received;
- *                              false if the frame is invalid or if additional
- *                                  fragments are expected.
- */
-struct net_buf *mcumgr_serial_process_frag(
-	struct mcumgr_serial_rx_ctxt *rx_ctxt,
-	const uint8_t *frag, int frag_len)
+int mcumgr_serial_process_frag(struct mcumgr_serial_rx_ctxt *rx_ctxt, const uint8_t *frag,
+			       int frag_len, struct net_buf **out_nb)
 {
 	struct net_buf *nb;
 	uint16_t crc;
 	uint16_t op;
 	int rc;
 
+	if (!out_nb) {
+		return -EINVAL;
+	}
+
+	/* Initialize output parameter to NULL in case of early return. */
+	*out_nb = NULL;
+
 	if (rx_ctxt->nb == NULL) {
 		rx_ctxt->nb = smp_packet_alloc();
 		if (rx_ctxt->nb == NULL) {
-			return NULL;
+			return -ENOMEM;
 		}
 	}
 
 	if (frag_len < sizeof(op)) {
-		return NULL;
+		return -EINVAL;
 	}
 
 	op = sys_be16_to_cpu(*(uint16_t *)frag);
@@ -94,45 +92,43 @@ struct net_buf *mcumgr_serial_process_frag(
 	case MCUMGR_SERIAL_HDR_FRAG:
 		if (rx_ctxt->nb->len == 0U) {
 			mcumgr_serial_free_rx_ctxt(rx_ctxt);
-			return NULL;
+			return -EINVAL;
 		}
 		break;
 
 	default:
-		return NULL;
+		return -EINVAL;
 	}
 
-	rc = mcumgr_serial_decode_frag(rx_ctxt,
-				       frag + sizeof(op),
-				       frag_len - sizeof(op));
+	rc = mcumgr_serial_decode_frag(rx_ctxt, frag + sizeof(op), frag_len - sizeof(op));
 	if (rc != 0) {
 		mcumgr_serial_free_rx_ctxt(rx_ctxt);
-		return NULL;
+		return -EINVAL;
 	}
 
 	if (op == MCUMGR_SERIAL_HDR_PKT) {
 		rc = mcumgr_serial_extract_len(rx_ctxt);
 		if (rc < 0) {
 			mcumgr_serial_free_rx_ctxt(rx_ctxt);
-			return NULL;
+			return -EINVAL;
 		}
 	}
 
 	if (rx_ctxt->nb->len < rx_ctxt->pkt_len) {
 		/* More fragments expected. */
-		return NULL;
+		return -EAGAIN;
 	}
 
 	if (rx_ctxt->nb->len > rx_ctxt->pkt_len) {
 		/* Payload longer than indicated in header. */
 		mcumgr_serial_free_rx_ctxt(rx_ctxt);
-		return NULL;
+		return -EINVAL;
 	}
 
 	crc = mcumgr_serial_calc_crc(rx_ctxt->nb->data, rx_ctxt->nb->len);
 	if (crc != 0U) {
 		mcumgr_serial_free_rx_ctxt(rx_ctxt);
-		return NULL;
+		return -EINVAL;
 	}
 
 	/* Packet is complete; strip the CRC. */
@@ -140,7 +136,9 @@ struct net_buf *mcumgr_serial_process_frag(
 
 	nb = rx_ctxt->nb;
 	rx_ctxt->nb = NULL;
-	return nb;
+	*out_nb = nb;
+
+	return 0;
 }
 
 /**
