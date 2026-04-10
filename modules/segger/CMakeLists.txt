@@ -27,4 +27,7 @@ if(CONFIG_SEGGER_DEBUGMON)
     ${SEGGER_DIR}/SEGGER/DebugMon/JLINK_MONITOR.c
     ${SEGGER_DIR}/SEGGER/DebugMon/JLINK_MONITOR_ISR_SES.s
   )
+  # Let DebugMon_Handler() be called in place of z_arm_debug_monitor() by default.
+  zephyr_linker_symbol(SYMBOL z_arm_debug_monitor EXPR "@DebugMon_Handler@")
+  zephyr_linker_sources(SECTIONS segger_debugmon.ld)
 endif()
